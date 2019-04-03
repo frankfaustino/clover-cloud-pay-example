@@ -1,9 +1,9 @@
 require('dotenv').config()
 const clover = require('remote-pay-cloud')
-const XMLHttpRequest = require('xmlhttprequest-ssl').XMLHttpRequest
+const { XMLHttpRequest } = require('xmlhttprequest-ssl')
 
-const xhr = new XMLHttpRequest()
-const httpSupport = new clover.HttpSupport(xhr)
+// https://github.com/clover/remote-pay-cloud/blob/bc1bc6fec041484b9fcfee8d2665a4fd0a654c3e/src/com/clover/util/HttpSupport.ts
+const httpSupport = new clover.HttpSupport(XMLHttpRequest)
 
 const { applicationId, merchantId, accessToken, deviceId, cloverServer, friendlyId, posName, serialNumber } = process.env
 
@@ -12,39 +12,6 @@ const cloudConfiguration = { accessToken, cloverServer, merchantId, deviceId, fr
 
 const useCloudConfiguration = true
 
-// console.log('⚠️️️️️', cloudConfiguration, '\n')
-
-function buildCloverConnectionListener() {
-  return Object.assign({}, clover.remotepay.ICloverConnectorListener.prototype, {
-
-    onDeviceReady: function (merchantInfo) {
-      updateStatus("Your Clover device is ready to process requests.", true);
-      console.log({ message: "Device Ready to process requests!", merchantInfo: merchantInfo });
-      toggleActions(true);
-    },
-
-    onDeviceError: function (cloverDeviceErrorEvent) {
-      updateStatus(`An error has occurred and we could not connect to your Clover Device. ${cloverDeviceErrorEvent.message}`, false);
-      toggleActions(false);
-    },
-
-    onDeviceDisconnected: function (e) {
-      updateStatus("The connection to your Clover Device has been dropped.", false);
-      console.log({ message: "Disconnected" });
-      toggleActions(false);
-    }
-
-  });
-}
-
-function getDeviceConfigurationForCloud({ applicationId, accessToken, cloverServer, deviceId, friendlyId, merchantId }) {
-  const configBuilder = new clover.WebSocketCloudCloverDeviceConfigurationBuilder(applicationId, deviceId, merchantId, accessToken)
-  // console.log(configBuilder)
-  configBuilder.setCloverServer(cloverServer)
-  configBuilder.setFriendlyId(friendlyId)
-
-  return configBuilder.build()
-}
 
 class CloverConnector {
   constructor() {
@@ -55,24 +22,51 @@ class CloverConnector {
     this.cloverServer = cloverServer
     this.friendlyId = friendlyId
     this.cloverConnector = null
+    this.cloverDeviceConnectionConfiguration = null
   }
 
   connect() {
     clover.DebugConfig.loggingEnabled = true
-    let cloverDeviceConnectionConfiguration = null
 
     if (useCloudConfiguration) {
-      cloverDeviceConnectionConfiguration = getDeviceConfigurationForCloud({ ...baseConfiguration, ...cloudConfiguration })
-      // console.log('', cloverDeviceConnectionConfiguration)
+      this.getDeviceConfigurationForCloud({ ...baseConfiguration, ...cloudConfiguration })
+      console.log('🧪', this.cloverDeviceConnectionConfiguration, '\n')
     }
 
     const builderConfiguration = {}
     builderConfiguration[clover.CloverConnectorFactoryBuilder.FACTORY_VERSION] = clover.CloverConnectorFactoryBuilder.VERSION_12
     const cloverConnectorFactory = clover.CloverConnectorFactoryBuilder.createICloverConnectorFactory(builderConfiguration)
-    const cloverConnector = cloverConnectorFactory.createICloverConnector(cloverDeviceConnectionConfiguration)
+    const cloverConnector = cloverConnectorFactory.createICloverConnector(this.cloverDeviceConnectionConfiguration)
     this.setCloverConnector(cloverConnector)
-    cloverConnector.addCloverConnectorListener(buildCloverConnectionListener(cloverConnector))
+    cloverConnector.addCloverConnectorListener(this.buildCloverConnectionListener(cloverConnector))
     cloverConnector.initializeConnection()
+  }
+
+  getDeviceConfigurationForCloud({ applicationId, accessToken, cloverServer, deviceId, friendlyId, httpSupport, merchantId }) {
+    const configBuilder = new clover.WebSocketCloudCloverDeviceConfigurationBuilder(applicationId, deviceId, merchantId, accessToken)
+
+    configBuilder.setCloverServer(cloverServer)
+    configBuilder.setFriendlyId(friendlyId)
+    configBuilder.setHttpSupport(httpSupport)
+    // 👷‍♂️ To-do: build websocket functionality
+    configBuilder.setWebSocketFactoryFunction()
+
+    this.cloverDeviceConnectionConfiguration = configBuilder.build()
+  }
+
+  buildCloverConnectionListener() {
+    return {
+      ...clover.remotepay.ICloverConnectorListener.prototype,
+      onDeviceReady: (merchantInfo) => {
+        console.log({ message: 'Device Ready to process requests!', merchantInfo })
+      },
+      onDeviceError: (cloverDeviceErrorEvent) => {
+        console.log({ message: 'An error has occurred and we could not connect to your Clover Device.', cloverDeviceErrorEvent })
+      },
+      onDeviceDisconnected: (e) => {
+        console.log({ message: 'Disconnected' })
+      }
+    }
   }
 
   setCloverConnector(cloverConnector) {
@@ -80,5 +74,5 @@ class CloverConnector {
   }
 }
 
-const test = new CloverConnector()
-test.connect()
+const start = new CloverConnector()
+start.connect()
