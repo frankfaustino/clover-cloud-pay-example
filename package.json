@@ -19,7 +19,9 @@
   "homepage": "https://github.com/frankfaustino/clover-cloud-pay-example#readme",
   "dependencies": {
     "dotenv": "^7.0.0",
+    "nodejs-websocket": "^1.7.2",
     "remote-pay-cloud": "^3.0.1",
+    "ws": "^6.2.1",
     "xmlhttprequest-ssl": "^1.5.5"
   }
 }
